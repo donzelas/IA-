@@ -21,6 +21,7 @@ class OllamaProvider(LLMProvider):
         self._client = OpenAI(
             base_url="http://localhost:11434/v1",
             api_key="ollama",
+            timeout=90.0,
         )
 
     def generate(
@@ -86,34 +87,43 @@ class GeminiProvider(LLMProvider):
         temperature: float = 0.7,
         model: str | None = None,
     ) -> str:
-        try:
-            gemini_model = self._genai.GenerativeModel(
-                model or self.DEFAULT_MODEL
-            )
+        import time
 
-            history = []
-            system_text = ""
-            for msg in messages:
-                role = msg["role"]
-                content = msg["content"]
-                if role == "system":
-                    system_text += content + "\n"
-                elif role == "user":
-                    history.append({"role": "user", "parts": [content]})
-                elif role == "assistant":
-                    history.append({"role": "model", "parts": [content]})
+        gemini_model = self._genai.GenerativeModel(
+            model or self.DEFAULT_MODEL
+        )
 
-            if system_text and history:
-                first_user = history[0]["parts"][0]
-                history[0]["parts"][0] = f"{system_text.strip()}\n\n{first_user}"
+        history = []
+        system_text = ""
+        for msg in messages:
+            role = msg["role"]
+            content = msg["content"]
+            if role == "system":
+                system_text += content + "\n"
+            elif role == "user":
+                history.append({"role": "user", "parts": [content]})
+            elif role == "assistant":
+                history.append({"role": "model", "parts": [content]})
 
-            response = gemini_model.generate_content(
-                history,
-                generation_config={"temperature": temperature},
-            )
-            return response.text
-        except Exception as e:
-            raise RuntimeError(f"Gemini falhou: {e}") from e
+        if system_text and history:
+            first_user = history[0]["parts"][0]
+            history[0]["parts"][0] = f"{system_text.strip()}\n\n{first_user}"
+
+        for attempt in range(3):
+            try:
+                response = gemini_model.generate_content(
+                    history,
+                    generation_config={"temperature": temperature},
+                )
+                return response.text
+            except Exception as e:
+                err = str(e).lower()
+                if "rate" in err or "quota" in err or "429" in err or "resource" in err:
+                    if attempt < 2:
+                        time.sleep(10)
+                        continue
+                raise RuntimeError(f"Gemini falhou: {e}") from e
+        raise RuntimeError("Gemini falhou após 3 tentativas")
 
 
 _PROVIDERS: dict[str, type[LLMProvider]] = {
