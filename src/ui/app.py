@@ -136,7 +136,13 @@ def render_chat_page():
                 search_results = None
                 if agent.web_search_enabled:
                     with st.status("🔍 Buscando na internet...", expanded=False):
-                        search_results = searcher.search_and_summarize(prompt)
+                        safe = agent.llm_provider != "ollama" or "dolphin" not in agent.llm_model
+                        include_videos = not safe
+                        search_results = searcher.search_and_summarize(
+                            prompt,
+                            safe_search=safe,
+                            include_videos=include_videos,
+                        )
                         if search_results and search_results != "Nenhum resultado encontrado.":
                             st.write("Resultados encontrados!")
                         else:
