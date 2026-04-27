@@ -30,3 +30,7 @@ logs/
 dist/
 build/
 *.egg-info/
+
+# Dados locais (documentos e banco vetorial ficam só na máquina)
+data/documents/
+data/chroma_db/

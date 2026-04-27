@@ -1,8 +1,13 @@
-"""Ponto de entrada principal da IA."""
+"""Ponto de entrada - executa a interface Streamlit."""
+
+import subprocess
+import sys
+from pathlib import Path
 
 
 def main():
-    print("IA iniciada com sucesso!")
+    app_path = Path(__file__).parent / "ui" / "app.py"
+    subprocess.run([sys.executable, "-m", "streamlit", "run", str(app_path)])
 
 
 if __name__ == "__main__":
