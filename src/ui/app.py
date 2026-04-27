@@ -136,12 +136,12 @@ def render_chat_page():
                 search_results = None
                 if agent.web_search_enabled:
                     with st.status("🔍 Buscando na internet...", expanded=False):
-                        safe = agent.llm_provider != "ollama" or "dolphin" not in agent.llm_model
-                        include_videos = not safe
+                        from src.chat.engine import _is_explicit
+                        is_nsfw = _is_explicit(prompt)
                         search_results = searcher.search_and_summarize(
                             prompt,
-                            safe_search=safe,
-                            include_videos=include_videos,
+                            safe_search=not is_nsfw,
+                            include_videos=is_nsfw,
                         )
                         if search_results and search_results != "Nenhum resultado encontrado.":
                             st.write("Resultados encontrados!")

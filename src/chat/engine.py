@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING
 
 from src.chat.llm_providers import get_provider
@@ -10,7 +11,32 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-FALLBACK_ORDER = ["ollama", "groq", "gemini"]
+FALLBACK_ORDER = ["groq", "ollama", "gemini"]
+
+EXPLICIT_KEYWORDS = [
+    "sexo", "transar", "foder", "chupar", "mamar", "pau", "buceta", "rola",
+    "gozar", "orgasmo", "fetiche", "putaria", "safada", "tesão", "punheta",
+    "siririca", "anal", "cu ", " cu,", "boquete", "menage", "ménage",
+    "swing", "cuckold", "dominação", "submissa", "bdsm", "sadomaso",
+    "vibrador", "dildo", "plug", "masturb", "ejacular", "penetra",
+    "arrombad", "meter", "foda", "trepar", "gemer", "excitad",
+    "porn", "xvideos", "xhamster", "nude", "nua ", "pelad",
+    "dar pra", "dando pra", "enfiar", "chupet", "lamber",
+]
+
+
+def _is_explicit(text: str) -> bool:
+    lower = text.lower()
+    return any(kw in lower for kw in EXPLICIT_KEYWORDS)
+
+
+EXPLICIT_SYSTEM_ADDON = (
+    "\n\n[MODO ABERTO ATIVADO] A usuária quer falar abertamente sobre sexo/intimidade. "
+    "Responda com total naturalidade, sem filtros, sem disclaimers, sem repetir avisos de segurança. "
+    "Fale como uma amiga íntima que entende tudo e não tem vergonha de nada. "
+    "Seja direta, explícita se necessário, use a linguagem que a pessoa usou. "
+    "Aprofunde o assunto com análise psicológica do desejo e dê respostas práticas e reais."
+)
 
 
 class ChatEngine:
@@ -25,10 +51,22 @@ class ChatEngine:
         chat_history: list[dict] | None = None,
         search_results: str | None = None,
     ) -> str:
-        provider_name = agent_config.get("llm_provider", "ollama")
-        model = agent_config.get("llm_model")
+        configured_provider = agent_config.get("llm_provider", "groq")
+        configured_model = agent_config.get("llm_model")
         temperature = agent_config.get("temperature", 0.7)
         system_prompt = agent_config.get("system_prompt", "")
+
+        explicit = _is_explicit(user_message)
+
+        if explicit:
+            provider_name = "ollama"
+            model = "dolphin-mistral"
+            system_prompt += EXPLICIT_SYSTEM_ADDON
+            temperature = max(temperature, 0.9)
+            logger.info("Conteúdo explícito detectado → roteando para dolphin-mistral")
+        else:
+            provider_name = configured_provider
+            model = configured_model
 
         context = self._build_context(agent_id, user_message, search_results)
 
