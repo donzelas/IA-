@@ -14,6 +14,7 @@ from src.agents.manager import AgentManager
 from src.knowledge.embeddings import KnowledgeBase
 from src.knowledge.loader import load_document, SUPPORTED_EXTENSIONS
 from src.chat.engine import ChatEngine
+from src.chat.history import ConversationHistory
 from src.search.web_search import WebSearcher
 
 st.set_page_config(
@@ -45,6 +46,11 @@ def get_chat_engine():
 @st.cache_resource
 def get_web_searcher():
     return WebSearcher()
+
+
+@st.cache_resource
+def get_conversation_history():
+    return ConversationHistory()
 
 
 def init_session():
@@ -101,6 +107,7 @@ def render_chat_page():
     manager = get_manager()
     engine = get_chat_engine()
     searcher = get_web_searcher()
+    conv_history = get_conversation_history()
 
     agent_id = st.session_state.current_agent_id
     if not agent_id:
@@ -118,7 +125,10 @@ def render_chat_page():
     st.caption(f"{agent.description} | LLM: {agent.llm_provider}/{agent.llm_model}")
 
     if agent_id not in st.session_state.chat_history:
-        st.session_state.chat_history[agent_id] = []
+        saved = conv_history.load(agent_id)
+        st.session_state.chat_history[agent_id] = [
+            {"role": m["role"], "content": m["content"]} for m in saved
+        ]
 
     history = st.session_state.chat_history[agent_id]
 
@@ -128,6 +138,7 @@ def render_chat_page():
 
     if prompt := st.chat_input(f"Fale com {agent.name}..."):
         history.append({"role": "user", "content": prompt})
+        conv_history.append(agent_id, "user", prompt)
         with st.chat_message("user"):
             st.markdown(prompt)
 
@@ -154,12 +165,15 @@ def render_chat_page():
                     for m in history[:-1]
                 ]
 
+                user_style = conv_history.get_user_style(agent_id)
+
                 agent_config = {
                     "system_prompt": agent.system_prompt,
                     "llm_provider": agent.llm_provider,
                     "llm_model": agent.llm_model,
                     "temperature": agent.temperature,
                     "web_search_enabled": agent.web_search_enabled,
+                    "user_style": user_style,
                 }
 
                 try:
@@ -175,11 +189,13 @@ def render_chat_page():
 
                 st.markdown(response)
                 history.append({"role": "assistant", "content": response})
+                conv_history.append(agent_id, "assistant", response)
 
     col1, col2 = st.columns([1, 1])
     with col1:
         if history and st.button("🗑️ Limpar conversa"):
             st.session_state.chat_history[agent_id] = []
+            conv_history.clear(agent_id)
             st.rerun()
 
 

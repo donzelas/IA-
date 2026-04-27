@@ -42,7 +42,7 @@ class WebSearcher:
 
     def scrape_url(self, url: str, max_chars: int = 3000) -> str:
         try:
-            response = requests.get(url, timeout=10, headers={
+            response = requests.get(url, timeout=5, headers={
                 "User-Agent": "Mozilla/5.0 (compatible; WebSearcher/1.0)"
             })
             response.raise_for_status()
@@ -66,8 +66,11 @@ class WebSearcher:
         results = self.search(query, max_results=max_results, safe_search=safe_search)
         if results:
             for i, result in enumerate(results, 1):
-                content = self.scrape_url(result["url"])
-                if not content:
+                if safe_search:
+                    content = self.scrape_url(result["url"])
+                    if not content:
+                        content = result["snippet"]
+                else:
                     content = result["snippet"]
                 parts.append(
                     f"--- Resultado {i} ---\n"
